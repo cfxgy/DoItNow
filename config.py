@@ -13,11 +13,12 @@ CLAUDE_API_KEY = "your-claude-api-key"
 
 # 选项3: 国内替代（通义千问/文心一言/DeepSeek等）
 # DeepSeek 性价比高，推荐国内用户使用
-DEEPSEEK_API_KEY = "sk-cb55acdfa7524e96b3500e4888beb368"
+DEEPSEEK_API_KEY = "your-deepseek-api-key"
 DEEPSEEK_BASE_URL = "https://api.deepseek.com/v1"
 
 # 当前使用的AI服务
 CURRENT_AI = "deepseek"  # 可选: "openai", "claude", "deepseek"
 
 # 数据文件路径
+
 DATA_FILE = "data/tasks.json"
