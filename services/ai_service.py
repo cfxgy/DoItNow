@@ -3,24 +3,14 @@ AI服务 - 处理任务智能分解
 """
 
 from openai import OpenAI
-import config
+from services.settings_service import SettingsService
 
 class AIService:
-    def __init__(self):
-        # 根据配置选择AI服务
-        if config.CURRENT_AI == "openai":
-            self.client = OpenAI(
-                api_key=config.OPENAI_API_KEY,
-                base_url=config.OPENAI_BASE_URL
-            )
-            self.model = "gpt-3.5-turbo"
-            
-        elif config.CURRENT_AI == "deepseek":
-            self.client = OpenAI(
-                api_key=config.DEEPSEEK_API_KEY,
-                base_url=config.DEEPSEEK_BASE_URL
-            )
-            self.model = "deepseek-chat"
+    def __init__(self, settings_service: SettingsService):
+        self.settings_service = settings_service
+        self.client = None
+        self.model = None
+        self._init_client()
         
         # 系统提示词
         self.system_prompt = """你是一个任务分解专家，专门帮助用户克服拖延症。
@@ -44,15 +34,52 @@ class AIService:
 - 第一个步骤要特别简单，降低启动门槛
 - 步骤描述要具体、可执行，不要太笼统"""
 
-    def break_down_task(self, task: str) -> dict:
-        """
-        调用AI分解任务
+    def _init_client(self):
+        """初始化API客户端"""
+        if not self.settings_service.is_api_configured():
+            self.client = None
+            return
         
-        参数:
-            task: 用户输入的任务描述
-        返回:
-            包含子任务列表的字典
-        """
+        config = self.settings_service.get_api_config()
+        
+        try:
+            self.client = OpenAI(
+                api_key=config["api_key"],
+                base_url=config["base_url"]
+            )
+            self.model = config["model"]
+        except Exception as e:
+            print(f"初始化AI客户端失败: {e}")
+            self.client = None
+    
+    def reload_config(self):
+        """重新加载配置（设置更改后调用）"""
+        self._init_client()
+    
+    def is_available(self) -> bool:
+        """检查AI服务是否可用"""
+        return self.client is not None
+    
+    def test_connection(self) -> dict:
+        """测试API连接"""
+        if not self.client:
+            return {"success": False, "error": "API未配置"}
+        
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": "测试连接，请回复OK"}],
+                max_tokens=10
+            )
+            return {"success": True, "message": "连接成功！"}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def break_down_task(self, task: str) -> dict:
+        """调用AI分解任务"""
+        if not self.client:
+            return {"success": False, "error": "请先在设置中配置API密钥"}
+        
         try:
             response = self.client.chat.completions.create(
                 model=self.model,
@@ -64,11 +91,10 @@ class AIService:
                 max_tokens=1000
             )
             
-            # 解析返回的JSON
             import json
             content = response.choices[0].message.content
             
-            # 清理可能的markdown代码块标记
+            # 清理markdown代码块
             content = content.strip()
             if content.startswith("```"):
                 content = content.split("\n", 1)[1]
@@ -81,10 +107,3 @@ class AIService:
             
         except Exception as e:
             return {"success": False, "error": str(e)}
-
-
-# 测试代码
-if __name__ == "__main__":
-    ai = AIService()
-    result = ai.break_down_task("学习Python爬虫")
-    print(result)

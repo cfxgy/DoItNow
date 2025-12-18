@@ -5,26 +5,31 @@
 
 import flet as ft
 from services.data_service import DataService
+from services.settings_service import SettingsService
 from services.ai_service import AIService
+from ui.settings_page import create_settings_view
 
 def main(page: ft.Page):
     # ============ 页面设置 ============
-    page.title = "🎯 任务分解器 - 告别拖延症"
+    page.title = "🎯 任务分解器"
     page.theme_mode = ft.ThemeMode.LIGHT
-    page.padding = 20
-    page.window_width = 500
+    page.padding = 0
+    page.window_width = 450
     page.window_height = 700
     
     # ============ 初始化服务 ============
+    settings_service = SettingsService()
     data_service = DataService()
-    ai_service = AIService()
+    ai_service = AIService(settings_service)
     
     # 当前选中的任务
     current_task_id = None
     
+    # 页面容器（用于切换主页/设置页）
+    main_content = ft.Column(expand=True)
+    
     # ============ UI 组件 ============
     
-    # 任务输入
     task_input = ft.TextField(
         label="输入你的任务",
         hint_text="例如：完成毕业论文第三章",
@@ -32,7 +37,6 @@ def main(page: ft.Page):
         on_submit=lambda e: add_task(e)
     )
     
-    # 子任务输入
     subtask_input = ft.TextField(label="子任务名称", expand=True)
     time_input = ft.TextField(
         label="分钟", 
@@ -41,59 +45,52 @@ def main(page: ft.Page):
         keyboard_type=ft.KeyboardType.NUMBER
     )
     
-    # 任务列表和子任务列表
     task_list = ft.Column(scroll=ft.ScrollMode.AUTO, spacing=5)
     subtask_list = ft.Column(scroll=ft.ScrollMode.AUTO, spacing=5)
     
-    # 进度显示
-    progress_bar = ft.ProgressBar(width=400, value=0)
-    progress_text = ft.Text("选择一个任务开始")
+    progress_bar = ft.ProgressBar(width=300, value=0)
+    progress_text = ft.Text("选择一个任务开始", size=12)
     
-    # AI状态显示
-    ai_status = ft.Text("", color=ft.colors.BLUE)
+    ai_status = ft.Text("", size=12, color=ft.colors.BLUE)
     
     # ============ 功能函数 ============
     
     def show_message(message: str, color=ft.colors.GREEN):
-        """显示提示消息"""
-        page.snack_bar = ft.SnackBar(
-            content=ft.Text(message),
-            bgcolor=color
-        )
+        page.snack_bar = ft.SnackBar(content=ft.Text(message), bgcolor=color)
         page.snack_bar.open = True
         page.update()
     
     def refresh_task_list():
-        """刷新主任务列表"""
         task_list.controls.clear()
         tasks = data_service.get_all_tasks()
         
         for task_id, task in tasks.items():
-            # 计算完成进度
             total = len(task["subtasks"])
             done = sum(1 for s in task["subtasks"] if s["done"])
             progress = f"({done}/{total})" if total > 0 else ""
             
             is_selected = task_id == current_task_id
+            is_completed = done == total and total > 0
             
             task_list.controls.append(
                 ft.Container(
                     content=ft.Row([
                         ft.Icon(
-                            ft.icons.CHECK_CIRCLE if done == total and total > 0 
+                            ft.icons.CHECK_CIRCLE if is_completed 
                             else ft.icons.RADIO_BUTTON_UNCHECKED,
-                            color=ft.colors.GREEN if done == total and total > 0 
-                            else ft.colors.GREY
+                            color=ft.colors.GREEN if is_completed else ft.colors.GREY,
+                            size=20
                         ),
                         ft.Text(
                             f"{task['name']} {progress}",
                             expand=True,
-                            weight=ft.FontWeight.BOLD if is_selected else None
+                            weight=ft.FontWeight.BOLD if is_selected else None,
+                            size=14
                         ),
                         ft.IconButton(
                             icon=ft.icons.DELETE_OUTLINE,
                             icon_color=ft.colors.RED_400,
-                            icon_size=20,
+                            icon_size=18,
                             on_click=lambda e, tid=task_id: delete_task(tid)
                         )
                     ]),
@@ -106,7 +103,6 @@ def main(page: ft.Page):
         page.update()
     
     def refresh_subtask_list():
-        """刷新子任务列表"""
         subtask_list.controls.clear()
         
         if current_task_id:
@@ -123,37 +119,30 @@ def main(page: ft.Page):
                                 ft.Text(
                                     subtask["name"],
                                     expand=True,
+                                    size=13,
                                     style=ft.TextStyle(
                                         decoration=ft.TextDecoration.LINE_THROUGH 
                                         if subtask["done"] else None,
-                                        color=ft.colors.GREY if subtask["done"] 
-                                        else None
+                                        color=ft.colors.GREY if subtask["done"] else None
                                     )
                                 ),
-                                ft.Text(
-                                    f"{subtask['minutes']}分钟",
-                                    color=ft.colors.GREY_600
-                                ),
+                                ft.Text(f"{subtask['minutes']}min", 
+                                       size=11, color=ft.colors.GREY_600),
                                 ft.IconButton(
                                     icon=ft.icons.CLOSE,
-                                    icon_size=16,
+                                    icon_size=14,
                                     on_click=lambda e, idx=i: delete_subtask(idx)
                                 )
                             ]),
-                            padding=8,
+                            padding=6,
                             border_radius=6,
-                            bgcolor=ft.colors.GREEN_50 if subtask["done"] 
-                            else ft.colors.WHITE
+                            bgcolor=ft.colors.GREEN_50 if subtask["done"] else ft.colors.WHITE
                         )
                     )
-                
-                # 更新进度
                 update_progress(task)
-        
         page.update()
     
     def update_progress(task: dict):
-        """更新进度条"""
         total = len(task["subtasks"])
         done = sum(1 for s in task["subtasks"] if s["done"])
         
@@ -161,140 +150,116 @@ def main(page: ft.Page):
         progress_text.value = f"进度: {done}/{total}"
         
         if done == total and total > 0:
-            progress_text.value += " 🎉 完成！"
+            progress_text.value += " 🎉"
     
     def add_task(e):
-        """添加主任务"""
         nonlocal current_task_id
         if task_input.value.strip():
             task_id = data_service.add_task(task_input.value.strip())
             current_task_id = task_id
             task_input.value = ""
-            
             refresh_task_list()
             refresh_subtask_list()
-            show_message("✅ 任务已创建，点击AI分解或手动添加子任务")
+            show_message("✅ 任务已创建")
     
     def select_task(task_id: str):
-        """选择任务"""
         nonlocal current_task_id
         current_task_id = task_id
         refresh_task_list()
         refresh_subtask_list()
     
     def delete_task(task_id: str):
-        """删除任务"""
         nonlocal current_task_id
         data_service.delete_task(task_id)
         if current_task_id == task_id:
             current_task_id = None
         refresh_task_list()
         refresh_subtask_list()
-        show_message("已删除任务")
     
     def add_subtask(e):
-        """手动添加子任务"""
         if current_task_id and subtask_input.value.strip():
             minutes = int(time_input.value or 25)
-            data_service.add_subtask(
-                current_task_id, 
-                subtask_input.value.strip(), 
-                minutes
-            )
+            data_service.add_subtask(current_task_id, subtask_input.value.strip(), minutes)
             subtask_input.value = ""
             refresh_subtask_list()
             refresh_task_list()
     
     def toggle_subtask(index: int):
-        """切换子任务状态"""
         data_service.toggle_subtask(current_task_id, index)
         refresh_subtask_list()
         refresh_task_list()
     
     def delete_subtask(index: int):
-        """删除子任务"""
         data_service.delete_subtask(current_task_id, index)
         refresh_subtask_list()
         refresh_task_list()
     
     def ai_break_down(e):
-        """AI智能分解任务"""
         if not current_task_id:
             show_message("请先选择一个任务", ft.colors.ORANGE)
+            return
+        
+        if not ai_service.is_available():
+            show_message("请先在设置中配置API", ft.colors.ORANGE)
+            show_settings(None)
             return
         
         task = data_service.get_task(current_task_id)
         if not task:
             return
         
-        # 显示加载状态
-        ai_status.value = "🤖 AI正在分析任务..."
+        ai_status.value = "🤖 AI正在分析..."
         page.update()
         
-        # 调用AI
         result = ai_service.break_down_task(task["name"])
         
         if result["success"]:
             subtasks = result["data"]["subtasks"]
             data_service.add_subtasks_batch(current_task_id, subtasks)
-            ai_status.value = f"✅ AI已生成 {len(subtasks)} 个子任务"
+            ai_status.value = f"✅ 已生成 {len(subtasks)} 个步骤"
             refresh_subtask_list()
             refresh_task_list()
         else:
-            ai_status.value = f"❌ 分解失败: {result['error']}"
+            ai_status.value = f"❌ {result['error'][:30]}..."
         
         page.update()
     
-    # ============ 导入导出对话框 ============
+    # ============ 导入导出 ============
     
     def show_export_dialog(e):
-        """显示导出对话框"""
         export_text = data_service.get_export_string()
         
         dialog = ft.AlertDialog(
             title=ft.Text("📤 导出数据"),
             content=ft.Column([
-                ft.Text("复制以下内容，在其他设备粘贴导入：", size=12),
-                ft.TextField(
-                    value=export_text,
-                    multiline=True,
-                    min_lines=5,
-                    max_lines=10,
-                    read_only=True
-                )
-            ], tight=True, width=400),
-            actions=[
-                ft.TextButton("关闭", on_click=lambda e: close_dialog())
-            ]
+                ft.Text("复制下方内容到其他设备导入：", size=12),
+                ft.TextField(value=export_text, multiline=True, 
+                           min_lines=5, max_lines=8, read_only=True)
+            ], tight=True, width=350),
+            actions=[ft.TextButton("关闭", on_click=lambda e: close_dialog())]
         )
         page.dialog = dialog
         dialog.open = True
         page.update()
     
     def show_import_dialog(e):
-        """显示导入对话框"""
         import_field = ft.TextField(
-            hint_text="粘贴从其他设备导出的数据",
-            multiline=True,
-            min_lines=5,
-            max_lines=10
+            hint_text="粘贴导出的数据",
+            multiline=True, min_lines=5, max_lines=8
         )
         
         def do_import(e):
             result = data_service.import_from_string(import_field.value)
             if result["success"]:
-                show_message(f"✅ 成功导入 {result['imported']} 个任务")
+                show_message(f"✅ 导入 {result['imported']} 个任务")
                 refresh_task_list()
                 close_dialog()
             else:
-                show_message(f"❌ 导入失败: {result['error']}", ft.colors.RED)
+                show_message(f"❌ {result['error']}", ft.colors.RED)
         
         dialog = ft.AlertDialog(
             title=ft.Text("📥 导入数据"),
-            content=ft.Column([
-                ft.Text("粘贴从其他设备导出的数据：", size=12),
-                import_field
-            ], tight=True, width=400),
+            content=ft.Column([import_field], tight=True, width=350),
             actions=[
                 ft.TextButton("取消", on_click=lambda e: close_dialog()),
                 ft.ElevatedButton("导入", on_click=do_import)
@@ -308,89 +273,118 @@ def main(page: ft.Page):
         page.dialog.open = False
         page.update()
     
-    # ============ 页面布局 ============
+    # ============ 页面切换 ============
     
-    page.add(
-        # 标题栏
-        ft.Row([
-            ft.Text("🎯 任务分解器", size=24, weight=ft.FontWeight.BOLD),
-            ft.Row([
-                ft.IconButton(
-                    icon=ft.icons.UPLOAD,
-                    tooltip="导入数据",
-                    on_click=show_import_dialog
-                ),
-                ft.IconButton(
-                    icon=ft.icons.DOWNLOAD,
-                    tooltip="导出数据",
-                    on_click=show_export_dialog
-                )
-            ])
-        ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-        
-        ft.Text("把大任务拆成小步骤，战胜拖延症！", color=ft.colors.GREY_600, size=12),
-        
-        ft.Divider(height=20),
-        
-        # 任务输入区
-        ft.Row([
-            task_input,
-            ft.ElevatedButton(
-                "添加任务",
-                icon=ft.icons.ADD,
-                on_click=add_task
-            )
-        ]),
-        
-        # 任务列表
-        ft.Text("📋 我的任务", weight=ft.FontWeight.BOLD),
-        ft.Container(
-            content=task_list,
-            height=150,
-            border=ft.border.all(1, ft.colors.GREY_300),
-            border_radius=8,
-            padding=10
-        ),
-        
-        ft.Divider(height=20),
-        
-        # 子任务区域
-        ft.Row([
-            ft.Text("📝 任务步骤", weight=ft.FontWeight.BOLD, expand=True),
-            ft.ElevatedButton(
-                "🤖 AI分解",
-                on_click=ai_break_down,
-                bgcolor=ft.colors.PURPLE_400,
-                color=ft.colors.WHITE
-            )
-        ]),
-        ai_status,
-        
-        # 手动添加子任务
-        ft.Row([
-            subtask_input,
-            time_input,
-            ft.IconButton(icon=ft.icons.ADD, on_click=add_subtask)
-        ]),
-        
-        # 进度条
-        ft.Row([progress_text, progress_bar]),
-        
-        # 子任务列表
-        ft.Container(
-            content=subtask_list,
-            height=200,
-            border=ft.border.all(1, ft.colors.GREY_300),
-            border_radius=8,
-            padding=10,
-            expand=True
+    def show_settings(e):
+        """显示设置页面"""
+        main_content.controls.clear()
+        main_content.controls.append(
+            create_settings_view(page, settings_service, ai_service, show_main)
         )
+        page.update()
+    
+    def show_main(e):
+        """显示主页面"""
+        main_content.controls.clear()
+        main_content.controls.append(home_view)
+        page.update()
+    
+    # ============ 主页面布局 ============
+    
+    # API未配置提示
+    api_tip = ft.Container(
+        content=ft.Row([
+            ft.Icon(ft.icons.INFO_OUTLINE, size=16, color=ft.colors.ORANGE),
+            ft.Text("未配置AI，点击右上角设置", size=12, color=ft.colors.ORANGE),
+        ]),
+        visible=not settings_service.is_api_configured()
     )
     
-    # 初始化加载数据
+    home_view = ft.Container(
+        content=ft.Column([
+            # 顶部栏
+            ft.Row([
+                ft.Text("🎯 任务分解器", size=22, weight=ft.FontWeight.BOLD),
+                ft.Row([
+                    ft.IconButton(icon=ft.icons.UPLOAD, tooltip="导入", 
+                                 on_click=show_import_dialog),
+                    ft.IconButton(icon=ft.icons.DOWNLOAD, tooltip="导出", 
+                                 on_click=show_export_dialog),
+                    ft.IconButton(icon=ft.icons.SETTINGS, tooltip="设置",
+                                 on_click=show_settings),
+                ], spacing=0)
+            ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+            
+            api_tip,
+            
+            ft.Divider(height=15),
+            
+            # 任务输入
+            ft.Row([
+                task_input,
+                ft.ElevatedButton("添加", icon=ft.icons.ADD, on_click=add_task)
+            ]),
+            
+            # 任务列表
+            ft.Text("📋 我的任务", weight=ft.FontWeight.BOLD, size=14),
+            ft.Container(
+                content=task_list,
+                height=130,
+                border=ft.border.all(1, ft.colors.GREY_300),
+                border_radius=8,
+                padding=8
+            ),
+            
+            ft.Divider(height=15),
+            
+            # 子任务区域
+            ft.Row([
+                ft.Text("📝 步骤", weight=ft.FontWeight.BOLD, size=14, expand=True),
+                ft.ElevatedButton(
+                    "🤖 AI分解",
+                    on_click=ai_break_down,
+                    bgcolor=ft.colors.PURPLE_400,
+                    color=ft.colors.WHITE,
+                    height=32
+                )
+            ]),
+            ai_status,
+            
+            ft.Row([
+                subtask_input,
+                time_input,
+                ft.IconButton(icon=ft.icons.ADD, on_click=add_subtask)
+            ]),
+            
+            ft.Row([progress_text, progress_bar]),
+            
+            ft.Container(
+                content=subtask_list,
+                expand=True,
+                border=ft.border.all(1, ft.colors.GREY_300),
+                border_radius=8,
+                padding=8
+            )
+        ], spacing=8),
+        padding=15,
+        expand=True
+    )
+    
+    # 初始化页面
+    main_content.controls.append(home_view)
+    page.add(main_content)
+    
+    # 加载数据
     refresh_task_list()
+    
+    # 首次运行提示配置
+    if not settings_service.is_api_configured():
+        page.snack_bar = ft.SnackBar(
+            content=ft.Text("💡 点击右上角设置按钮配置AI API"),
+            duration=5000
+        )
+        page.snack_bar.open = True
 
 
-# 启动应用
 if __name__ == "__main__":
     ft.app(target=main)
