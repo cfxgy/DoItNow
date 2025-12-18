@@ -1,6 +1,5 @@
 """
-任务分解器 - 主程序
-告别拖延症，从分解任务开始！
+任务分解器 - 主程序（颜色兼容版）
 """
 
 import flet as ft
@@ -8,6 +7,12 @@ from services.data_service import DataService
 from services.settings_service import SettingsService
 from services.ai_service import AIService
 from ui.settings_page import create_settings_view
+
+# 兼容新旧版本的颜色
+try:
+    colors = ft.Colors
+except AttributeError:
+    colors = ft.colors
 
 def main(page: ft.Page):
     # ============ 页面设置 ============
@@ -22,10 +27,7 @@ def main(page: ft.Page):
     data_service = DataService()
     ai_service = AIService(settings_service)
     
-    # 当前选中的任务
     current_task_id = None
-    
-    # 页面容器（用于切换主页/设置页）
     main_content = ft.Column(expand=True)
     
     # ============ UI 组件 ============
@@ -51,11 +53,11 @@ def main(page: ft.Page):
     progress_bar = ft.ProgressBar(width=300, value=0)
     progress_text = ft.Text("选择一个任务开始", size=12)
     
-    ai_status = ft.Text("", size=12, color=ft.colors.BLUE)
+    ai_status = ft.Text("", size=12, color=colors.BLUE)
     
     # ============ 功能函数 ============
     
-    def show_message(message: str, color=ft.colors.GREEN):
+    def show_message(message: str, color=colors.GREEN):
         page.snack_bar = ft.SnackBar(content=ft.Text(message), bgcolor=color)
         page.snack_bar.open = True
         page.update()
@@ -76,9 +78,9 @@ def main(page: ft.Page):
                 ft.Container(
                     content=ft.Row([
                         ft.Icon(
-                            ft.icons.CHECK_CIRCLE if is_completed 
-                            else ft.icons.RADIO_BUTTON_UNCHECKED,
-                            color=ft.colors.GREEN if is_completed else ft.colors.GREY,
+                            ft.Icons.CHECK_CIRCLE if is_completed 
+                            else ft.Icons.RADIO_BUTTON_UNCHECKED,
+                            color=colors.GREEN if is_completed else colors.GREY,
                             size=20
                         ),
                         ft.Text(
@@ -88,15 +90,15 @@ def main(page: ft.Page):
                             size=14
                         ),
                         ft.IconButton(
-                            icon=ft.icons.DELETE_OUTLINE,
-                            icon_color=ft.colors.RED_400,
+                            icon=ft.Icons.DELETE_OUTLINE,
+                            icon_color=colors.RED_400,
                             icon_size=18,
                             on_click=lambda e, tid=task_id: delete_task(tid)
                         )
                     ]),
                     padding=10,
                     border_radius=8,
-                    bgcolor=ft.colors.BLUE_100 if is_selected else ft.colors.GREY_100,
+                    bgcolor=colors.BLUE_100 if is_selected else colors.GREY_100,
                     on_click=lambda e, tid=task_id: select_task(tid)
                 )
             )
@@ -123,20 +125,20 @@ def main(page: ft.Page):
                                     style=ft.TextStyle(
                                         decoration=ft.TextDecoration.LINE_THROUGH 
                                         if subtask["done"] else None,
-                                        color=ft.colors.GREY if subtask["done"] else None
+                                        color=colors.GREY if subtask["done"] else None
                                     )
                                 ),
                                 ft.Text(f"{subtask['minutes']}min", 
-                                       size=11, color=ft.colors.GREY_600),
+                                       size=11, color=colors.GREY_600),
                                 ft.IconButton(
-                                    icon=ft.icons.CLOSE,
+                                    icon=ft.Icons.CLOSE,
                                     icon_size=14,
                                     on_click=lambda e, idx=i: delete_subtask(idx)
                                 )
                             ]),
                             padding=6,
                             border_radius=6,
-                            bgcolor=ft.colors.GREEN_50 if subtask["done"] else ft.colors.WHITE
+                            bgcolor=colors.GREEN_50 if subtask["done"] else colors.WHITE
                         )
                     )
                 update_progress(task)
@@ -196,11 +198,11 @@ def main(page: ft.Page):
     
     def ai_break_down(e):
         if not current_task_id:
-            show_message("请先选择一个任务", ft.colors.ORANGE)
+            show_message("请先选择一个任务", colors.ORANGE)
             return
         
         if not ai_service.is_available():
-            show_message("请先在设置中配置API", ft.colors.ORANGE)
+            show_message("请先在设置中配置API", colors.ORANGE)
             show_settings(None)
             return
         
@@ -255,7 +257,7 @@ def main(page: ft.Page):
                 refresh_task_list()
                 close_dialog()
             else:
-                show_message(f"❌ {result['error']}", ft.colors.RED)
+                show_message(f"❌ {result['error']}", colors.RED)
         
         dialog = ft.AlertDialog(
             title=ft.Text("📥 导入数据"),
@@ -276,7 +278,6 @@ def main(page: ft.Page):
     # ============ 页面切换 ============
     
     def show_settings(e):
-        """显示设置页面"""
         main_content.controls.clear()
         main_content.controls.append(
             create_settings_view(page, settings_service, ai_service, show_main)
@@ -284,33 +285,30 @@ def main(page: ft.Page):
         page.update()
     
     def show_main(e):
-        """显示主页面"""
         main_content.controls.clear()
         main_content.controls.append(home_view)
         page.update()
     
     # ============ 主页面布局 ============
     
-    # API未配置提示
     api_tip = ft.Container(
         content=ft.Row([
-            ft.Icon(ft.icons.INFO_OUTLINE, size=16, color=ft.colors.ORANGE),
-            ft.Text("未配置AI，点击右上角设置", size=12, color=ft.colors.ORANGE),
+            ft.Icon(ft.Icons.INFO_OUTLINE, size=16, color=colors.ORANGE),
+            ft.Text("未配置AI，点击右上角设置", size=12, color=colors.ORANGE),
         ]),
         visible=not settings_service.is_api_configured()
     )
     
     home_view = ft.Container(
         content=ft.Column([
-            # 顶部栏
             ft.Row([
                 ft.Text("🎯 任务分解器", size=22, weight=ft.FontWeight.BOLD),
                 ft.Row([
-                    ft.IconButton(icon=ft.icons.UPLOAD, tooltip="导入", 
+                    ft.IconButton(icon=ft.Icons.UPLOAD, tooltip="导入", 
                                  on_click=show_import_dialog),
-                    ft.IconButton(icon=ft.icons.DOWNLOAD, tooltip="导出", 
+                    ft.IconButton(icon=ft.Icons.DOWNLOAD, tooltip="导出", 
                                  on_click=show_export_dialog),
-                    ft.IconButton(icon=ft.icons.SETTINGS, tooltip="设置",
+                    ft.IconButton(icon=ft.Icons.SETTINGS, tooltip="设置",
                                  on_click=show_settings),
                 ], spacing=0)
             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
@@ -319,32 +317,29 @@ def main(page: ft.Page):
             
             ft.Divider(height=15),
             
-            # 任务输入
             ft.Row([
                 task_input,
-                ft.ElevatedButton("添加", icon=ft.icons.ADD, on_click=add_task)
+                ft.ElevatedButton("添加", icon=ft.Icons.ADD, on_click=add_task)
             ]),
             
-            # 任务列表
             ft.Text("📋 我的任务", weight=ft.FontWeight.BOLD, size=14),
             ft.Container(
                 content=task_list,
                 height=130,
-                border=ft.border.all(1, ft.colors.GREY_300),
+                border=ft.border.all(1, colors.GREY_300),
                 border_radius=8,
                 padding=8
             ),
             
             ft.Divider(height=15),
             
-            # 子任务区域
             ft.Row([
                 ft.Text("📝 步骤", weight=ft.FontWeight.BOLD, size=14, expand=True),
                 ft.ElevatedButton(
                     "🤖 AI分解",
                     on_click=ai_break_down,
-                    bgcolor=ft.colors.PURPLE_400,
-                    color=ft.colors.WHITE,
+                    bgcolor=colors.PURPLE_400,
+                    color=colors.WHITE,
                     height=32
                 )
             ]),
@@ -353,7 +348,7 @@ def main(page: ft.Page):
             ft.Row([
                 subtask_input,
                 time_input,
-                ft.IconButton(icon=ft.icons.ADD, on_click=add_subtask)
+                ft.IconButton(icon=ft.Icons.ADD, on_click=add_subtask)
             ]),
             
             ft.Row([progress_text, progress_bar]),
@@ -361,7 +356,7 @@ def main(page: ft.Page):
             ft.Container(
                 content=subtask_list,
                 expand=True,
-                border=ft.border.all(1, ft.colors.GREY_300),
+                border=ft.border.all(1, colors.GREY_300),
                 border_radius=8,
                 padding=8
             )
@@ -370,14 +365,10 @@ def main(page: ft.Page):
         expand=True
     )
     
-    # 初始化页面
     main_content.controls.append(home_view)
     page.add(main_content)
-    
-    # 加载数据
     refresh_task_list()
     
-    # 首次运行提示配置
     if not settings_service.is_api_configured():
         page.snack_bar = ft.SnackBar(
             content=ft.Text("💡 点击右上角设置按钮配置AI API"),

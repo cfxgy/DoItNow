@@ -1,10 +1,18 @@
 """
-设置页面 - API配置界面
+设置页面 - API配置界面（颜色兼容版）
 """
 
 import flet as ft
 from services.settings_service import SettingsService
 from services.ai_service import AIService
+
+# 兼容新旧版本
+try:
+    colors = ft.Colors
+    icons = ft.Icons
+except AttributeError:
+    colors = ft.colors
+    icons = ft.icons
 
 def create_settings_view(
     page: ft.Page, 
@@ -18,10 +26,8 @@ def create_settings_view(
     current_provider = settings_service.settings.get("ai_provider", "deepseek")
     current_config = settings_service.get_api_config()
     
-    # 状态提示
     status_text = ft.Text("", size=12)
     
-    # API Key 输入
     api_key_input = ft.TextField(
         label="API Key",
         value=current_config["api_key"],
@@ -31,7 +37,6 @@ def create_settings_view(
         expand=True
     )
     
-    # Base URL 输入
     base_url_input = ft.TextField(
         label="API Base URL（可选，留空使用默认）",
         value=settings_service.settings.get("api_base_url", ""),
@@ -39,7 +44,6 @@ def create_settings_view(
         expand=True
     )
     
-    # Model 输入
     model_input = ft.TextField(
         label="模型名称（可选，留空使用默认）",
         value=settings_service.settings.get("model", ""),
@@ -47,9 +51,7 @@ def create_settings_view(
         expand=True
     )
     
-    # 服务商选择下拉框
     def on_provider_change(e):
-        """切换服务商时更新提示"""
         provider = provider_dropdown.value
         if provider in providers:
             config = providers[provider]
@@ -69,42 +71,36 @@ def create_settings_view(
     )
     
     def save_settings(e):
-        """保存设置"""
         settings_service.set_api_config(
             provider=provider_dropdown.value,
             api_key=api_key_input.value.strip(),
             base_url=base_url_input.value.strip(),
             model=model_input.value.strip()
         )
-        
-        # 重新初始化AI服务
         ai_service.reload_config()
         
         status_text.value = "✅ 设置已保存"
-        status_text.color = ft.colors.GREEN
+        status_text.color = colors.GREEN
         page.update()
     
     def test_api(e):
-        """测试API连接"""
-        # 先保存设置
         save_settings(e)
         
         status_text.value = "🔄 正在测试连接..."
-        status_text.color = ft.colors.BLUE
+        status_text.color = colors.BLUE
         page.update()
         
         result = ai_service.test_connection()
         
         if result["success"]:
             status_text.value = "✅ 连接成功！API配置正确"
-            status_text.color = ft.colors.GREEN
+            status_text.color = colors.GREEN
         else:
             status_text.value = f"❌ 连接失败: {result['error']}"
-            status_text.color = ft.colors.RED
+            status_text.color = colors.RED
         
         page.update()
     
-    # 帮助文本
     help_text = ft.Column([
         ft.Text("📖 如何获取API Key？", weight=ft.FontWeight.BOLD, size=14),
         ft.Text("", size=8),
@@ -112,7 +108,7 @@ def create_settings_view(
         ft.Text("1. 访问 platform.deepseek.com", size=12),
         ft.Text("2. 注册账号并登录", size=12),
         ft.Text("3. 在API Keys页面创建密钥", size=12),
-        ft.Text("4. 新用户有免费额度", size=12, color=ft.colors.GREEN),
+        ft.Text("4. 新用户有免费额度", size=12, color=colors.GREEN),
         ft.Text("", size=8),
         ft.Text("OpenAI:", weight=ft.FontWeight.BOLD, size=12),
         ft.Text("1. 访问 platform.openai.com", size=12),
@@ -120,13 +116,11 @@ def create_settings_view(
         ft.Text("3. 创建API Key", size=12),
     ], spacing=2)
     
-    # 设置页面布局
     settings_view = ft.Container(
         content=ft.Column([
-            # 标题栏
             ft.Row([
                 ft.IconButton(
-                    icon=ft.icons.ARROW_BACK,
+                    icon=icons.ARROW_BACK,
                     on_click=on_close
                 ),
                 ft.Text("⚙️ 设置", size=24, weight=ft.FontWeight.BOLD),
@@ -136,19 +130,16 @@ def create_settings_view(
             
             ft.Text("🤖 AI API 配置", size=18, weight=ft.FontWeight.BOLD),
             ft.Text("配置AI服务后即可使用智能任务分解功能", 
-                   size=12, color=ft.colors.GREY),
+                   size=12, color=colors.GREY),
             
             ft.Container(height=10),
             
-            # 服务商选择
             provider_dropdown,
             
             ft.Container(height=10),
             
-            # API Key
             api_key_input,
             
-            # Base URL（高级选项）
             ft.ExpansionTile(
                 title=ft.Text("高级选项", size=14),
                 controls=[
@@ -161,16 +152,15 @@ def create_settings_view(
             
             ft.Container(height=10),
             
-            # 操作按钮
             ft.Row([
                 ft.ElevatedButton(
                     "保存设置",
-                    icon=ft.icons.SAVE,
+                    icon=icons.SAVE,
                     on_click=save_settings
                 ),
                 ft.OutlinedButton(
                     "测试连接",
-                    icon=ft.icons.WIFI_TETHERING,
+                    icon=icons.WIFI_TETHERING,
                     on_click=test_api
                 ),
             ]),
@@ -179,7 +169,6 @@ def create_settings_view(
             
             ft.Divider(height=30),
             
-            # 帮助信息
             help_text,
             
         ], scroll=ft.ScrollMode.AUTO, spacing=5),
